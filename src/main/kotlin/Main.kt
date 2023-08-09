@@ -3,11 +3,11 @@ import java.time.ZoneOffset
 import org.apache.hadoop.conf.Configuration
 import org.apache.iceberg.*
 import org.apache.iceberg.aws.s3.S3FileIOProperties
-import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.SessionCatalog
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.data.GenericAppenderFactory
 import org.apache.iceberg.data.GenericRecord
+import org.apache.iceberg.expressions.Expressions
 import org.apache.iceberg.io.OutputFileFactory
 import org.apache.iceberg.io.UnpartitionedWriter
 import org.apache.iceberg.rest.RESTSessionCatalog
@@ -33,10 +33,6 @@ fun main(args: Array<String>) {
     catalog.initialize("rest-catalog", initialConfig)
 
     val ctx = SessionCatalog.SessionContext.createEmpty()
-    val list = catalog.listTables(ctx, Namespace.of("default"))
-
-    // print out the tables
-    list.forEach { println(it) }
 
     val schema =
             Schema(
@@ -73,4 +69,22 @@ fun main(args: Array<String>) {
     val appender = table.newAppend()
     writeResult.dataFiles().forEach { appender.appendFile(it) }
     appender.commit()
+
+
+    val filterTs1Files = table.newScan()
+        .useSnapshot(table.currentSnapshot().snapshotId())
+        .filter(Expressions.greaterThan("ts1", 1690848000000000L)) // ts1 > 2023-08-01 00:00:00.000 UTC
+        .planFiles()
+        .toList()
+
+    val filterTs2Files = table.newScan()
+        .useSnapshot(table.currentSnapshot().snapshotId())
+        .filter(Expressions.greaterThan("ts2", 1690848000000000L)) // ts2 > 2023-08-01 00:00:00.000 UTC
+        .planFiles()
+        .toList()
+
+    println("found files filtered by ts1: %d".format(filterTs1Files.size))
+    filterTs1Files.forEach{ println(it) }
+    println("found files filtered by ts2: %d".format(filterTs2Files.size))
+    filterTs2Files.forEach{ println(it) }
 }
